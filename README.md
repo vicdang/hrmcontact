@@ -1,173 +1,229 @@
 # HRM Contact Export Tool
 
-Automated tool để export danh sách liên hệ từ trna HRM system sang file Excel.
+Automated tool for exporting employee contact lists from the TRNA HRM (Human Resource Management) system to Excel files.
 
-## 📋 Tính năng
+## 📋 Features
 
-- ✅ **CAS Authentication**: Tự động đăng nhập qua CAS (Central Authentication Service)
-- ✅ **Session Caching**: Lưu session, không cần đăng nhập lại mỗi lần
-- ✅ **Auto Re-login**: Tự động đăng nhập lại nếu session hết hạn
-- ✅ **Pagination**: Tự động detect và xử lý phân trang
-- ✅ **Data Export**: Export dữ liệu đầy đủ sang Excel
-- ✅ **Project Filtering**: Lọc theo Project ID
+- ✅ **CAS Authentication**: Automatic login via Central Authentication Service (CAS)
+- ✅ **Session Caching**: Saves authentication session to avoid repeated logins
+- ✅ **Automatic Re-login**: Automatically re-authenticates when session expires
+- ✅ **Automatic Pagination**: Detects and handles pagination automatically
+- ✅ **Data Export**: Exports complete contact information to Excel format
+- ✅ **Project Filtering**: Filter contacts by HRM Project ID
+- ✅ **Type-Safe Code**: Full type hints and comprehensive docstrings
+- ✅ **Error Handling**: Robust error handling with informative error messages
 
-## 🚀 Cài đặt
+## 🚀 Installation
 
-### 1. Clone/Tải project
+### 1. Clone or download the project
 ```bash
 cd employee
 ```
 
-### 2. Tạo virtual environment
+### 2. Create a virtual environment
 ```powershell
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 ```
 
-### 3. Cài dependencies
+### 3. Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Cấu hình credentials
-Sao chép `.env.example` → `.env` và điền thông tin:
+### 4. Configure credentials
+Copy `.env.example` to `.env` and fill in your HRM credentials:
 ```env
 HRM_DOMAIN=trna
 HRM_USERNAME=your_username
 HRM_PASSWORD=your_password
 ```
 
-## 📖 Cách sử dụng
+## 📖 Usage
 
-### Lần đầu tiên (auto-login)
+### First Run (Auto-login)
 ```bash
 python main.py --project-id 1368
 ```
-Script sẽ:
-1. Đăng nhập vào CAS
-2. Lưu session vào `.session`
-3. Export dữ liệu sang `contacts.xlsx`
 
-### Lần tiếp theo (dùng saved session)
+The script will:
+1. Authenticate against HRM via CAS
+2. Cache the session in `.session` file
+3. Export contacts to `output/contacts.xlsx`
+
+### Subsequent Runs (Using Cached Session)
 ```bash
 python main.py --project-id 1368
 ```
-Không cần login lại, tự động dùng session đã lưu.
 
-### Force login mới
+No login needed - automatically uses the cached session.
+
+### Force Fresh Login
 ```bash
 python main.py --project-id 1368 --force-login
 ```
-Hủy session hiện tại, đăng nhập lại.
 
-### Chỉ định file output
+Clears the cached session and performs a fresh CAS authentication.
+
+### Custom Output Filename
 ```bash
 python main.py --project-id 1368 --out "my_contacts.xlsx"
 ```
 
-### Dùng PHPSESSID trực tiếp
+### Using Specific PHPSESSID
 ```bash
-python main.py --project-id 1368 --phpsessid "ST-xxx"
+python main.py --project-id 1368 --phpsessid "ST-xxxxx"
 ```
 
-## 📋 Command Options
+## 📋 Command-line Options
 
-| Option | Bắt buộc | Mặc định | Mô tả |
-|--------|----------|----------|-------|
-| `--project-id` | ✅ | - | Project ID để export |
-| `--out` | ❌ | `contacts.xlsx` | Đường dẫn file output |
-| `--phpsessid` | ❌ | - | PHPSESSID trực tiếp |
-| `--force-login` | ❌ | - | Đặt lại session, login lại |
-| `--sleep` | ❌ | `0.4` | Thời gian chờ giữa requests (giây) |
-| `--base-url` | ❌ | Auto | Custom base URL |
+| Option | Type | Required | Default | Description |
+|--------|------|----------|---------|-------------|
+| `--project-id` | Integer | ✅ Yes | - | HRM project ID to export |
+| `--out` | Path | ❌ No | `output/contacts.xlsx` | Output Excel file path |
+| `--force-login` | Flag | ❌ No | False | Force new CAS login |
+| `--phpsessid` | String | ❌ No | - | Use specific PHPSESSID cookie |
+| `--sleep` | Float | ❌ No | 0.4 | Delay between requests (seconds) |
+| `--base-url` | URL | ❌ No | Auto-detected | Custom HRM base URL |
 
-## 📁 Cấu trúc Project
+## 📁 Project Structure
 
 ```
 employee/
 ├── src/
-│   ├── __init__.py          # Package init
-│   ├── login.py             # CAS Authentication module
-│   └── export.py            # Export logic
-├── output/                  # Thư mục output (Excel files)
-├── main.py                  # Entry point
-├── requirements.txt         # Python dependencies
-├── .env                     # Credentials (ignored in git)
-├── .env.example            # Config template
-├── .gitignore              # Git ignore rules
-└── README.md               # This file
+│   ├── __init__.py              # Package initialization
+│   ├── login.py                 # CAS authentication module
+│   └── export.py                # Export logic
+├── output/                      # Directory for Excel exports
+├── main.py                      # Entry point
+├── config.py                    # Centralized configuration
+├── requirements.txt             # Python dependencies
+├── .env                         # Credentials (git-ignored)
+├── .env.example                 # Config template
+├── .gitignore                   # Git exclusion rules
+└── README.md                    # This file
 ```
 
 ## 🔑 Session Management
 
-- Session lưu vào file `.session` (JSON format)
-- `.session` **không được commit** vào git (xem `.gitignore`)
-- Mỗi lần chạy sẽ:
-  1. Kiểm tra `.session` có tồn tại không
-  2. Nếu có → dùng saved session
-  3. Nếu không → login mới
-  4. Nếu hết hạn → auto re-login
+- **Session File**: `.session` (JSON format)
+- **Git Policy**: Never committed (see `.gitignore`)
+- **Behavior**:
+  1. First run: Performs CAS authentication, saves session
+  2. Subsequent runs: Reuses cached session if available
+  3. Session expires: Automatically detects expiration and re-authenticates
+  4. Force reset: Use `--force-login` flag
 
-## 📤 Output Files
+## 📤 Exported Data
 
-Exported Excel files sẽ chứa:
-- **Badge ID**: Mã nhân viên
-- **Fullname (VN)**: Tên tiếng Việt
-- **Fullname (EN)**: Tên tiếng Anh
-- **Email**: Email
-- **Work Phone**: Số điện thoại công việc
-- **Position**: Vị trí công việc
-- **Location**: Địa điểm
-- **Projects/Groups**: Danh sách dự án
-- **View Detail URL**: Link xem chi tiết
-- **Resume URL**: Link CV
-- **Project 1, 2, ...**: Các dự án (mở rộng thành cột riêng)
+The Excel file contains the following columns:
+
+| Column | Description |
+|--------|-------------|
+| Badge ID | Employee identification number |
+| Fullname (VN) | Employee name in Vietnamese |
+| Fullname (EN) | Employee name in English |
+| Email | Work email address |
+| Work Phone | Work phone number |
+| Position | Job position/title |
+| Location | Work location/office |
+| Projects/Groups | Associated projects (pipe-separated) |
+| View Detail URL | Link to employee details page |
+| Resume URL | Link to employee resume |
+| Project 1, 2, N | Individual project columns (auto-expanded) |
 
 ## 🐛 Troubleshooting
 
 ### "Cannot find table#resultTable"
-Session có thể đã hết hạn:
+**Cause**: Session expired or not logged in
+
+**Solution**:
 ```bash
 python main.py --project-id 1368 --force-login
 ```
 
-### "HTTP 500"
-Project ID có thể không tồn tại hoặc không có quyền truy cập:
-- Kiểm tra project ID
-- Kiểm tra quyền truy cập trong HRM
+### "HTTP 500" Error
+**Cause**: Project ID may not exist or access denied
+
+**Solution**:
+- Verify the project ID is correct
+- Check permissions in HRM
+- Contact HRM administrator
 
 ### "Login failed"
-Kiểm tra `.env`:
-- `HRM_USERNAME` và `HRM_PASSWORD` có đúng không?
-- CAS server có hoạt động không?
-- Kiếm session cache: `Remove-Item .session -Force`
+**Cause**: Invalid credentials or CAS server issues
 
-### "Module not found"
-Cài dependencies:
+**Solution**:
+1. Verify `.env` file has correct credentials
+2. Check HRM domain setting
+3. Clear session cache: `Remove-Item .session -Force`
+4. Try again: `python main.py --project-id 1368`
+
+### "Module not found" Error
+**Cause**: Dependencies not installed
+
+**Solution**:
 ```bash
 pip install -r requirements.txt
 ```
 
-## 🔧 Development
+## 🔧 Development & Debugging
 
-### Chạy lại từ đầu
-```powershell
-# Xóa session cache
-Remove-Item .session -Force
-
-# Đăng nhập lại
-python main.py --project-id 1368
-```
-
-### Debug mode
-Xem detailed output:
+### View Debug Output
+Add `--sleep 1` to see detailed output:
 ```bash
 python main.py --project-id 1368 --sleep 1
 ```
 
-## 📝 Notes
+### Reset Session Cache
+```powershell
+# PowerShell
+Remove-Item .session -Force
 
-- Session có hiệu lực 24 giờ (thường)
-- Mỗi lần chạy script sẽ update time last-used
-- Dữ liệu được lưu dưới dạng Excel `.xlsx`
-- Hỗ trợ phân trang tự động (unlimited records)
+# Or delete the file manually
+```
+
+### Test Authentication
+```bash
+python -m src.login
+```
+
+### View Configuration
+```bash
+python config.py
+```
+
+## 📝 Important Notes
+
+- **Session TTL**: Sessions are typically valid for 24 hours
+- **Rate Limiting**: Default 0.4s delay between requests to avoid throttling
+- **Data Format**: Exports are in Excel `.xlsx` format (not `.xls`)
+- **Pagination**: Supports unlimited records through automatic pagination
+- **Case Sensitivity**: Project IDs are typically numeric
+
+## 🔐 Security
+
+- **Credentials**: Never commit `.env` file to version control
+- **Session File**: `.session` is automatically git-ignored
+- **PHPSESSID**: Contains authentication token - handle carefully
+- **Password Storage**: Use strong passwords and environment variable protection
+
+## 📞 Support
+
+For issues or questions:
+1. Check the Troubleshooting section above
+2. Review error messages for specific details
+3. Ensure all dependencies are installed
+4. Contact HRM system administrator for access issues
+
+## 📄 License
+
+This tool is provided as-is for internal use.
+
+## 🎯 Version History
+
+- **v1.0.0** (2024): Initial release
+  - CAS authentication with session caching
+  - Automatic pagination detection
+  - Excel export with comprehensive data
+  - Full type hints and docstrings

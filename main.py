@@ -2,12 +2,17 @@
 """
 HRM Contact Export - Main Entry Point
 
+This script serves as the entry point for the HRM Contact Export tool.
+It imports and delegates to the export module's main() function.
+
 Usage:
     python main.py --project-id 1368
-    python main.py --project-id 1368 --out "my_contacts.xlsx"
+    python main.py --project-id 1368 --out custom.xlsx
     python main.py --project-id 1368 --force-login
-    python main.py --project-id 1368 --phpsessid "ST-xxx"
+
+See src/export.py for detailed documentation on available options.
 """
+
 import sys
 from src.export import main
 

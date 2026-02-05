@@ -19,8 +19,7 @@ OLD_FILES = [
 
 # Excel files to move to output/
 EXCEL_FILES = [
-    "contacts.xlsx",
-    "2025 Year End Activities _ YEP & Quà 1 1 3.xlsx",
+    "*_contacts.xlsx",
 ]
 
 def cleanup():
