@@ -14,8 +14,11 @@ Module Attributes:
 
 Example:
     >>> from config import get_output_path, generate_output_filename, get_session_file_path
+    >>> # With default filename
     >>> output = get_output_path("contacts.xlsx")
-    >>> timestamped_output = get_output_path(generate_output_filename(1368))
+    >>> # With timestamped filename (recommended)
+    >>> timestamped = generate_output_filename(1368)
+    >>> output = get_output_path(timestamped)
     >>> session = get_session_file_path()
 """
 
@@ -70,7 +73,7 @@ def generate_output_filename(project_id: int) -> str:
     Example:
         >>> filename = generate_output_filename(1368)
         >>> print(filename)
-        20260205_143022_1368_contacts.xlsx
+        20260224_183141_1368_contacts.xlsx
     """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     return f"{timestamp}_{project_id}_contacts.xlsx"

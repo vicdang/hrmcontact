@@ -9,24 +9,31 @@ This module provides functionality to:
 - Fetch paginated contact lists filtered by project ID
 - Automatically detect pagination parameters
 - Parse HTML response tables and extract contact information
+- Extract embedded JavaScript data (gender, nationality, mobile phone, images)
 - Export contact data to Excel files with proper formatting
 
 Key Features:
 - Session caching: Reuses authenticated sessions to avoid repeated logins
 - Automatic pagination: Detects and handles pagination automatically
 - Robust HTML parsing: Uses BeautifulSoup to parse contact tables
+- JavaScript data extraction: Regex-based extraction of emp_* data objects
 - Excel export: Uses pandas and openpyxl for Excel file generation
 - Error handling: Automatic session refresh on expiration
+- Multiple badge ID formats: Supports numeric, T-prefix, B-prefix formats
 
 Export Data Columns:
-- Badge ID: Employee identification number
-- Fullname (VN): Vietnamese name
-- Fullname (EN): English name  
+- Badge ID: Employee identification number (numeric, T-prefix, or B-prefix)
+- Full Name (Vietnamese): Vietnamese name
+- Full Name (English): English name
+- Gender: Employee gender (from JavaScript data)
+- Nationality: Employee nationality (from JavaScript data)
 - Email: Email address
 - Work Phone: Work phone number
+- Mobile Phone: Mobile phone number (from JavaScript data)
 - Position: Job position
 - Location: Work location
 - Projects/Groups: Associated projects (pipe-separated)
+- Image URL: Link to employee photo (from JavaScript data)
 - View Detail URL: Link to employee details page
 - Resume URL: Link to resume file
 - Project 1, 2, N: Individual project columns
@@ -49,6 +56,7 @@ import re
 import sys
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urljoin
@@ -295,13 +303,34 @@ def parse_rows(base_url: str, html: str) -> PageParse:
     Parse contact rows from HTML table.
     
     Extracts contact information from HRM's result table:
-    - Badge ID: First column
+    - Badge ID: First column (emp_number from JavaScript, can have prefixes T, B, or leading zeros)
     - Vietnamese name: Second column visible text
     - English name: Hidden span with class "hide" 
-    - Email: From mailto link or text
+    - Gender: From JavaScript data object (emp_gender field)
+    - Nationality: From JavaScript data object (emp_nationality field)
+    - Email: From mailto link or text in fourth column
     - Work phone, position, location: Direct columns
+    - Mobile phone: From JavaScript data object (emp_mobilephone field)
     - Projects: From project links in projects column
+    - Image URL: From JavaScript data object (emp_img_src field)
     - URLs: From View Detail and Resume links
+    
+    Badge ID Formats:
+        - Numeric with leading zeros: "010071" → normalized to "10071"
+        - T-prefix: "T252094" → normalized to "252094"  
+        - B-prefix: "B219416" → normalized to "219416"
+    
+    The employee data is stored in JavaScript objects like:
+    ```javascript
+    var employee154176 = {
+        emp_number: 154176,
+        emp_gender: 'Male',
+        emp_nationality: 'Kinh',
+        emp_mobilephone: '0349300992',
+        emp_img_src: '/path/to/image.jpg',
+        ...
+    };
+    ```
     
     Args:
         base_url: Base URL for resolving relative links
@@ -332,14 +361,65 @@ def parse_rows(base_url: str, html: str) -> PageParse:
             raise SessionExpiredException("Session expired, need to re-login")
         raise RuntimeError("Cannot find table#resultTable (layout changed or not logged in).")
 
+    # Extract employee data from JavaScript objects embedded in HTML
+    # Pattern: var employee154176 = { ... emp_number: 154176, emp_gender: 'Male', emp_nationality: 'Kinh', ... };
+    emp_data_map = {}
+    
+    # Find all JavaScript variable assignments with emp_number
+    var_pattern = r'var\s+employee\d+\s*=\s*\{([^}]*emp_number:[^}]*)\}'
+    for match in re.finditer(var_pattern, html, re.DOTALL):
+        obj_content = match.group(1)
+        
+        # Extract emp_number (main key)
+        emp_num_match = re.search(r'emp_number:\s*(\d+)', obj_content)
+        if not emp_num_match:
+            continue
+        emp_number = emp_num_match.group(1)
+        
+        # Extract all emp_* fields we care about
+        emp_data = {}
+        
+        # emp_gender: 'Male' or "Female"
+        gender_match = re.search(r'emp_gender:\s*["\']([^"\']+)["\']', obj_content)
+        emp_data['gender'] = gender_match.group(1) if gender_match else ""
+        
+        # emp_nationality: 'Kinh' or "Vietnamese"
+        nationality_match = re.search(r'emp_nationality:\s*["\']([^"\']+)["\']', obj_content)
+        emp_data['nationality'] = nationality_match.group(1) if nationality_match else ""
+        
+        # emp_mobilephone: '0349300992'
+        mobile_match = re.search(r'emp_mobilephone:\s*["\']([^"\']+)["\']', obj_content)
+        emp_data['mobilephone'] = mobile_match.group(1) if mobile_match else ""
+        
+        # emp_img_src: '/path/to/image.jpg'
+        img_match = re.search(r'emp_img_src:\s*["\']([^"\']+)["\']', obj_content)
+        emp_data['img_src'] = img_match.group(1) if img_match else ""
+        
+        emp_data_map[emp_number] = emp_data
+
     out: List[Dict[str, str]] = []
     for tr in table.select("tbody tr"):
         tds = tr.find_all("td")
-        if len(tds) < 8:
+        if len(tds) < 9:
             continue
 
-        # Extract badge ID
+        # Extract badge ID / emp_number (first column)
         badge_id = normalize_text(tds[0].get_text(" ", strip=True))
+        
+        # Normalize badge ID for lookup in emp_data_map
+        # JavaScript emp_number is always numeric (no leading zeros or T/B prefix)
+        if badge_id.isdigit():
+            # Remove leading zeros: "010071" -> "10071"
+            badge_id_normalized = str(int(badge_id))
+        elif badge_id.startswith('T') and badge_id[1:].isdigit():
+            # Remove T prefix: "T252094" -> "252094"
+            badge_id_normalized = badge_id[1:]
+        elif badge_id.startswith('B') and badge_id[1:].isdigit():
+            # Remove B prefix: "B219416" -> "219416"
+            badge_id_normalized = badge_id[1:]
+        else:
+            # Unknown format, use as-is
+            badge_id_normalized = badge_id
 
         # Fullname cell contains Vietnamese name span + hidden English name span
         fullname_cell = tds[1]
@@ -349,6 +429,14 @@ def parse_rows(base_url: str, html: str) -> PageParse:
         # Get Vietnamese name by extracting only visible spans (not the hidden English name)
         vn_spans = fullname_cell.select("span:not(.hide)")
         vn_name = normalize_text(" ".join([s.get_text(" ", strip=True) for s in vn_spans])) if vn_spans else normalize_text(fullname_cell.get_text(" ", strip=True).replace(en_name, "").strip())
+
+        # Extract gender from the emp_data_map (from JavaScript data)
+        # Use normalized badge ID (without leading zeros) since JavaScript stores as integer
+        emp_info = emp_data_map.get(badge_id_normalized, {})
+        gender = emp_info.get('gender', "")
+        nationality = emp_info.get('nationality', "")
+        mobilephone = emp_info.get('mobilephone', "")
+        img_src = emp_info.get('img_src', "")
 
         # Extract email from mailto link or cell text
         email_a = tds[3].select_one("a[href^='mailto:']")
@@ -377,13 +465,17 @@ def parse_rows(base_url: str, html: str) -> PageParse:
 
         out.append({
             "Badge ID": badge_id,
-            "Fullname (VN)": vn_name,
-            "Fullname (EN)": en_name,
+            "Full Name (Vietnamese)": vn_name,
+            "Full Name (English)": en_name,
+            "Gender": gender,
+            "Nationality": nationality,
             "Email": email,
             "Work Phone": work_phone,
+            "Mobile Phone": mobilephone,
             "Position": position,
             "Location": location,
             "Projects/Groups": " | ".join(projects_list),
+            "Image URL": img_src,
             "View Detail URL": view_detail_url,
             "Resume URL": resume_url,
             "Projects List": projects_list,
@@ -469,9 +561,16 @@ def export_contacts(
     4. Parse contact information from HTML tables
     5. Export to Excel with proper formatting
     
+    Output Filename:
+        If output_file is None/not provided:
+            - Uses template: output/<YYYYMMDD_HHMMSS>_<project_id>_contacts.xlsx
+            - Example: output/20260224_180636_1368_contacts.xlsx
+        If output_file is provided:
+            - Uses that exact path (bypasses template)
+    
     Args:
         project_id: HRM project ID to filter by (required)
-        output_file: Output Excel file path. If None, uses config.get_output_path()
+        output_file: Output Excel file path. If None, uses template with project ID and timestamp
         base_url: Custom base URL. If None, auto-built from HRM_DOMAIN
         phpsessid: Pre-existing PHPSESSID to use instead of login
         sleep: Delay between requests in seconds (default: 0.4)
@@ -483,17 +582,17 @@ def export_contacts(
         
     Example:
         >>> export_contacts(project_id=1368)
-        [OK] Project 1368: exported 195 rows -> .../output/contacts.xlsx
+        [OK] Project 1368: exported 193 rows -> output/20260224_180636_1368_contacts.xlsx
         
         >>> export_contacts(1368, "custom.xlsx", force_login=True)
         [*] Auto-logging in via CAS...
-        [OK] Project 1368: exported 195 rows -> custom.xlsx
+        [OK] Project 1368: exported 193 rows -> custom.xlsx
     """
     # ====================================================================
     # 1. PREPARE OUTPUT AND BASE URLs
     # ====================================================================
     
-    # Use config default if not provided
+    # Use config default if not provided, with project_id and timestamp in filename
     if not output_file:
         output_file = config.get_output_path(config.generate_output_filename(project_id))
     
@@ -623,19 +722,27 @@ def main() -> None:
     
     Parses command-line arguments and calls export_contacts() with appropriate parameters.
     
+    Output Filename:
+        When --out is not specified, files are saved with template:
+            output/<YYYYMMDD_HHMMSS>_<project_id>_contacts.xlsx
+        Example: output/20260224_180636_1368_contacts.xlsx
+        
+        When --out is specified, that exact path is used.
+    
     Command-line Arguments:
         --project-id (required): HRM project ID to export contacts for
-        --out (optional): Output Excel file path (default: output/contacts.xlsx from config)
+        --out (optional): Output Excel file path. If omitted, uses template with timestamp and project ID
         --base-url (optional): Custom HRM base URL
         --phpsessid (optional): Pre-existing PHPSESSID cookie to use
         --sleep (optional): Delay between HTTP requests in seconds (default: 0.4)
         --force-login (optional): Force new CAS authentication, ignore cached session
         
     Examples:
-        # Basic usage (uses cached session or auto-login)
+        # Basic usage with template filename (default)
         python main.py --project-id 1368
+        # Output: output/20260224_180636_1368_contacts.xlsx
         
-        # Custom output file
+        # Custom output file (bypasses template)
         python main.py --project-id 1368 --out custom_contacts.xlsx
         
         # Force re-authentication

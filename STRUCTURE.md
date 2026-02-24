@@ -19,7 +19,7 @@ employee/
 │
 ├── output/                     # Exported files directory
 │   ├── .gitkeep               # Placeholder for git tracking
-│   └── contacts.xlsx          # Generated exports
+│   └── *.xlsx                 # Generated exports (timestamped by project)
 │
 ├── main.py                     # Entry point (runs src.export.main())
 ├── requirements.txt            # Python dependencies
@@ -37,8 +37,9 @@ employee/
 
 #### CLI Usage
 ```bash
-# Using main.py (recommended)
-python main.py --project-id 1368 --out output/contacts.xlsx
+# Using main.py (recommended) - default filename includes timestamp
+python main.py --project-id 1368
+# Output: output/20260224_180636_1368_contacts.xlsx
 
 # Direct module usage
 python -m src.export --project-id 1368
@@ -227,7 +228,7 @@ python main.py --project-id 1368 --force-login
 ### Debugging
 - Check `.session` file: `cat .session | head -c 100`
 - Force new login: `Remove-Item .session -Force`
-- View output: Check `output/contacts.xlsx`
+- View output: Check `output/` folder for timestamped Excel files
 
 ## 📋 Dependencies
 

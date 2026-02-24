@@ -201,6 +201,19 @@ HRM_PASSWORD=your_password   # Login password
 python main.py --project-id 1368
 ```
 
+### Output Filename Format
+
+**Default (no --out)**: Uses template with timestamp and project ID
+```bash
+# Output: output/20260224_180636_1368_contacts.xlsx
+```
+
+**Custom (with --out)**: Uses exact filename
+```bash
+python main.py --project-id 1368 --out custom_contacts.xlsx
+# Output: custom_contacts.xlsx
+```
+
 ### With Custom Output
 ```bash
 python main.py --project-id 1368 --out custom_contacts.xlsx
@@ -215,6 +228,55 @@ python main.py --project-id 1368 --force-login
 ```bash
 python main.py --project-id 1368 --phpsessid "ST-xxxxx"
 ```
+
+## Exported Data Fields
+
+### Data Sources
+
+The tool extracts employee data from two sources:
+
+**HTML Table Cells**:
+- Badge ID
+- English Name
+- Vietnamese Name
+- Email
+- Work Phone
+- Position
+- Location
+- Projects/Groups
+
+**JavaScript Objects** (Embedded in HTML response):
+- Gender (emp_gender: Male/Female)
+- Nationality (emp_nationality: Vietnamese, Kinh, etc.)
+- Mobile Phone (emp_mobilephone)
+- Image URL (emp_img_src)
+
+### Badge ID Formats
+
+Supports multiple badge ID formats:
+- **Numeric with leading zeros**: `010071` → `10071`
+- **T-prefix**: `T252094` → `252094`
+- **B-prefix**: `B219416` → `219416`
+
+All formats automatically normalized for data lookup in JavaScript objects.
+
+### Data Extraction Details
+
+The JavaScript data is embedded in the HTML like:
+```javascript
+var employee154176 = {
+    emp_number: 154176,
+    emp_id: '154176',
+    full_name: 'TRẦN VIỆT QUỐC',
+    emp_gender: 'Male',
+    emp_nationality: 'Vietnamese',
+    emp_mobilephone: '0903123993',
+    emp_img_src: '/path/to/image.jpg',
+    ...
+};
+```
+
+The tool uses regex patterns to extract these values and associate them with the corresponding employees based on emp_number.
 
 ## Error Handling
 

@@ -17,7 +17,7 @@ Automated tool for exporting employee contact lists from the TRNA HRM (Human Res
 
 ### 1. Clone or download the project
 ```bash
-cd employee
+cd hrmcontact
 ```
 
 ### 2. Create a virtual environment
@@ -49,7 +49,7 @@ python main.py --project-id 1368
 The script will:
 1. Authenticate against HRM via CAS
 2. Cache the session in `.session` file
-3. Export contacts to `output/contacts.xlsx`
+3. Export contacts to `output/<YYYYMMDD_HHMMSS>_<project_id>_contacts.xlsx`
 
 ### Subsequent Runs (Using Cached Session)
 ```bash
@@ -80,7 +80,7 @@ python main.py --project-id 1368 --phpsessid "ST-xxxxx"
 | Option | Type | Required | Default | Description |
 |--------|------|----------|---------|-------------|
 | `--project-id` | Integer | ✅ Yes | - | HRM project ID to export |
-| `--out` | Path | ❌ No | `output/contacts.xlsx` | Output Excel file path |
+| `--out` | Path | ❌ No | `output/<timestamp>_<project_id>_contacts.xlsx` | Output Excel file path |
 | `--force-login` | Flag | ❌ No | False | Force new CAS login |
 | `--phpsessid` | String | ❌ No | - | Use specific PHPSESSID cookie |
 | `--sleep` | Float | ❌ No | 0.4 | Delay between requests (seconds) |
@@ -94,11 +94,11 @@ employee/
 │   ├── __init__.py              # Package initialization
 │   ├── login.py                 # CAS authentication module
 │   └── export.py                # Export logic
-├── output/                      # Directory for Excel exports
+├── output/                      # Directory for exports
 ├── main.py                      # Entry point
-├── config.py                    # Centralized configuration
+├── config.py                    # Centralized config
 ├── requirements.txt             # Python dependencies
-├── .env                         # Credentials (git-ignored)
+├── .env                         # Credentials (ignored)
 ├── .env.example                 # Config template
 ├── .gitignore                   # Git exclusion rules
 └── README.md                    # This file
@@ -121,8 +121,8 @@ The Excel file contains the following columns:
 | Column | Description |
 |--------|-------------|
 | Badge ID | Employee identification number |
-| Fullname (VN) | Employee name in Vietnamese |
-| Fullname (EN) | Employee name in English |
+| Full Name (Vietnamese) | Employee name in Vietnamese |
+| Full Name (English) | Employee name in English |
 | Email | Work email address |
 | Work Phone | Work phone number |
 | Position | Job position/title |

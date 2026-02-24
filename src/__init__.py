@@ -15,7 +15,7 @@ Modules:
 Example:
     >>> from src.export import export_contacts
     >>> export_contacts(project_id=1368)
-    [OK] Project 1368: exported 195 rows -> ./output/contacts.xlsx
+    [OK] Project 1368: exported 195 rows -> ./output/20260224_180636_1368_contacts.xlsx
 """
 
 __version__ = "1.0.0"
