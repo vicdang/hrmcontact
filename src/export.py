@@ -543,6 +543,178 @@ def detect_page_param(session: requests.Session, base_url: str, project_id: int,
     )
 
 
+def parse_resume_data(session: requests.Session, resume_url: str, base_url: str, sleep: float = 0.4) -> Dict[str, str]:
+    """
+    Parse employee resume page to extract educational and employment data.
+    
+    Extracts the following information from the resume page:
+    - Date Join TMA: Employee's join date at TMA
+    - Date Of Birth: Employee's birth date
+    - Institution: University/School name
+    - Year of attendance: Years attended
+    - Certificate: Degree/Certificate name
+    - Major field: Field of study
+    - Ranking: Academic ranking/GPA
+    
+    Handles the resume page structure where education fields are displayed as
+    label-value pairs with input fields (value attribute) or text content.
+    
+    Args:
+        session: Authenticated requests Session object
+        resume_url: Full URL to the employee's resume page
+        base_url: Base URL for resolving relative links
+        sleep: Delay in seconds before fetching (default: 0.4)
+        
+    Returns:
+        Dictionary with extracted fields (empty strings if not found)
+        
+    Example:
+        >>> data = parse_resume_data(session, "https://hrm.../resume/123", base_url, 0.4)
+        >>> print(data)
+        {'Date Join TMA': '2020-01-15', 'Date Of Birth': '1995-05-20', ...}
+    """
+    data = {
+        "Date Join TMA": "",
+        "Date Of Birth": "",
+        "Institution": "",
+        "Year of attendance": "",
+        "Certificate": "",
+        "Major field": "",
+        "Ranking": ""
+    }
+    
+    if not resume_url:
+        return data
+    
+    try:
+        time.sleep(sleep)
+        r = session.get(resume_url, timeout=30)
+        if r.status_code != 200:
+            return data
+        
+        soup = BeautifulSoup(r.text, "html.parser")
+        
+        # Helper function to extract value from a row
+        def get_value_from_row(row):
+            """Extract value from a table row with label-value structure"""
+            cells = row.find_all(["td", "th"])
+            if len(cells) < 2:
+                return ""
+            
+            value_cell = cells[1]
+            
+            # Try to get value from input field first
+            input_field = value_cell.find("input")
+            if input_field and input_field.get("value"):
+                return normalize_text(input_field.get("value"))
+            
+            # Otherwise, get text content
+            return normalize_text(value_cell.get_text())
+        
+        # Extract Date of Birth - find in simple label-value rows (exactly 2 cells)
+        all_rows = soup.find_all("tr")
+        for row in all_rows:
+            cells = row.find_all(["td", "th"])
+            # Only process rows with exactly 2 cells (label-value pairs)
+            if len(cells) != 2:
+                continue
+            label = normalize_text(cells[0].get_text()).lower().strip()
+            if label in ["date of birth:", "date of birth"]:
+                data["Date Of Birth"] = get_value_from_row(row)
+                break
+        
+        # Extract Date Join TMA - find in simple label-value rows (exactly 2 cells)
+        for row in all_rows:
+            cells = row.find_all(["td", "th"])
+            # Only process rows with exactly 2 cells (label-value pairs)
+            if len(cells) != 2:
+                continue
+            label = normalize_text(cells[0].get_text()).lower().strip()
+            if label in ["date join tma:", "date join tma", "employed date:", "employed date"]:
+                data["Date Join TMA"] = get_value_from_row(row)
+                break
+        
+        # Extract education data - look for education table with exactly 5 columns
+        # The actual resume pages use a table structure with Institution, Year of attendance, etc. as columns
+        # NOT label-value pairs
+        found_education = False
+        for table in soup.find_all("table"):
+            # Check if this table has education column headers
+            first_row = table.find("tr")
+            if not first_row:
+                continue
+            
+            # Get all header cells from first row
+            header_cells = first_row.find_all(["th"])
+            if not header_cells:
+                header_cells = first_row.find_all(["td"])
+            
+            # Education table should have exactly 5 columns: Institution, Year, Certificate, Major, Ranking
+            if len(header_cells) != 5:
+                continue
+            
+            # Check if this looks like an education table by examining header text
+            headers_text = " ".join([cell.get_text().lower().strip() for cell in header_cells])
+            is_education_table = (
+                "institution" in headers_text and 
+                "year" in headers_text and
+                "certificate" in headers_text and
+                "major" in headers_text and
+                "ranking" in headers_text
+            )
+            
+            if not is_education_table:
+                continue
+            
+            # Found education table - extract data from data rows (skip header row)
+            rows = table.find_all("tr")
+            for row in rows[1:]:  # Skip the header row
+                cells = row.find_all(["td"])
+                if len(cells) < 5:
+                    continue
+                
+                # Extract education fields from cells
+                # Expected column order: Institution, Year, Certificate, Major, Ranking
+                if not data["Institution"]:
+                    inst = normalize_text(cells[0].get_text())
+                    if inst and inst.lower() not in ["institution", ""]:
+                        data["Institution"] = inst
+                
+                if not data["Year of attendance"]:
+                    year = normalize_text(cells[1].get_text())
+                    if year and year.lower() not in ["year of attendance", "year", ""]:
+                        data["Year of attendance"] = year
+                
+                if not data["Certificate"]:
+                    cert = normalize_text(cells[2].get_text())
+                    if cert and cert.lower() not in ["certificate", ""]:
+                        data["Certificate"] = cert
+                
+                if not data["Major field"]:
+                    major = normalize_text(cells[3].get_text())
+                    if major and major.lower() not in ["major field", "major", ""]:
+                        data["Major field"] = major
+                
+                if not data["Ranking"]:
+                    rank = normalize_text(cells[4].get_text())
+                    if rank and rank.lower() not in ["ranking", ""]:
+                        data["Ranking"] = rank
+                
+                # Once we have the first education entry, move to next table
+                if data["Institution"] or data["Year of attendance"]:
+                    found_education = True
+                    break
+            
+            if found_education:
+                break
+        
+        return data
+    
+    except Exception as e:
+        print(f"[!] Error parsing resume {resume_url}: {e}", file=sys.stderr)
+        return data
+
+
 def export_contacts(
     project_id: int,
     output_file: Optional[str] = None,
@@ -552,14 +724,15 @@ def export_contacts(
     force_login: bool = False
 ) -> None:
     """
-    Main export function: Fetch HRM contacts and export to Excel.
+    Main export function: Fetch HRM contacts and export to Excel with resume data.
     
     This function handles the complete workflow:
     1. Get or create an authenticated session (CAS login)
     2. Detect pagination parameter by testing page 2
     3. Fetch all pages of results
     4. Parse contact information from HTML tables
-    5. Export to Excel with proper formatting
+    5. Fetch and parse employee resume pages to extract educational/employment data
+    6. Export comprehensive data to Excel with proper formatting
     
     Output Filename:
         If output_file is None/not provided:
@@ -567,6 +740,15 @@ def export_contacts(
             - Example: output/20260224_180636_1368_contacts.xlsx
         If output_file is provided:
             - Uses that exact path (bypasses template)
+    
+    Resume Data Extracted:
+        - Date Join TMA: Employee's join date
+        - Date Of Birth: Employee's birth date
+        - Institution: University/School name
+        - Year of attendance: Years attended school
+        - Certificate: Degree/Certificate name
+        - Major field: Field of study
+        - Ranking: Academic ranking/GPA
     
     Args:
         project_id: HRM project ID to filter by (required)
@@ -583,10 +765,12 @@ def export_contacts(
     Example:
         >>> export_contacts(project_id=1368)
         [OK] Project 1368: exported 193 rows -> output/20260224_180636_1368_contacts.xlsx
+        [OK] Processed 150 employee resumes
         
         >>> export_contacts(1368, "custom.xlsx", force_login=True)
         [*] Auto-logging in via CAS...
         [OK] Project 1368: exported 193 rows -> custom.xlsx
+        [OK] Processed 150 employee resumes
     """
     # ====================================================================
     # 1. PREPARE OUTPUT AND BASE URLs
@@ -693,7 +877,37 @@ def export_contacts(
             add_rows(pp.rows)
 
     # ====================================================================
-    # 6. EXPORT TO EXCEL
+    # 6. FETCH RESUME DATA (OPTIONAL ENHANCEMENT)
+    # ====================================================================
+    
+    # Initialize resume data columns
+    resume_columns = ["Date Join TMA", "Date Of Birth", "Institution", "Year of attendance", "Certificate", "Major field", "Ranking"]
+    for col in resume_columns:
+        for row in all_rows:
+            if col not in row:
+                row[col] = ""
+    
+    # Fetch resume data for each employee if Resume URL exists
+    resume_count = 0
+    for idx, row in enumerate(all_rows):
+        resume_url = row.get("Resume URL", "").strip()
+        if resume_url:
+            emp_name = row.get('Full Name (English)', row.get('Full Name (Vietnamese)', 'Unknown'))
+            print(f"[*] Fetching resume {idx+1}/{len(all_rows)}: {emp_name}", file=sys.stderr)
+            resume_data = parse_resume_data(session, resume_url, base_url, sleep)
+            for key, value in resume_data.items():
+                row[key] = value
+            resume_count += 1
+            
+            # Show progress every 10 resumes
+            if resume_count % 10 == 0:
+                print(f"[*] Processed {resume_count} resumes so far...", file=sys.stderr)
+    
+    if resume_count > 0:
+        print(f"[OK] Processed {resume_count} employee resumes", file=sys.stderr)
+
+    # ====================================================================
+    # 7. EXPORT TO EXCEL
     # ====================================================================
     
     if not all_rows:

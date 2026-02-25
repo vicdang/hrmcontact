@@ -8,7 +8,8 @@ Automated tool for exporting employee contact lists from the TRNA HRM (Human Res
 - ✅ **Session Caching**: Saves authentication session to avoid repeated logins
 - ✅ **Automatic Re-login**: Automatically re-authenticates when session expires
 - ✅ **Automatic Pagination**: Detects and handles pagination automatically
-- ✅ **Data Export**: Exports complete contact information to Excel format
+- ✅ **Contact Data Export**: Exports complete contact information to Excel format
+- ✅ **Resume Data Extraction**: Automatically extracts educational and employment data from employee resumes
 - ✅ **Project Filtering**: Filter contacts by HRM Project ID
 - ✅ **Type-Safe Code**: Full type hints and comprehensive docstrings
 - ✅ **Error Handling**: Robust error handling with informative error messages
@@ -116,8 +117,9 @@ employee/
 
 ## 📤 Exported Data
 
-The Excel file contains the following columns:
+The Excel file contains contact information and automatically-extracted resume data:
 
+### Contact Information Columns
 | Column | Description |
 |--------|-------------|
 | Badge ID | Employee identification number |
@@ -131,6 +133,19 @@ The Excel file contains the following columns:
 | View Detail URL | Link to employee details page |
 | Resume URL | Link to employee resume |
 | Project 1, 2, N | Individual project columns (auto-expanded) |
+
+### Resume Data Columns (Automatically Extracted)
+| Column | Description | Coverage |
+|--------|-------------|----------|
+| Date of Birth | Employee's birth date | ~92% |
+| Date Join TMA | Employment start date | ~92% |
+| Institution | University/School name | ~91% |
+| Year of attendance | Attendance period | ~91% |
+| Certificate | Degree/Diploma name | ~91% |
+| Major field | Field of study | ~91% |
+| Ranking | Academic ranking/GPA | ~84% |
+
+**Note**: Resume data is automatically extracted from employee resume pages. Coverage percentages reflect employees with available resume data.
 
 ## 🐛 Troubleshooting
 

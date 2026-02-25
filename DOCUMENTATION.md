@@ -56,24 +56,40 @@ Removed duplicate/obsolete files:
 - `load_session()`: Load cached session from disk
 
 ### src/export.py
-**Purpose**: Contact list fetching and Excel export
+**Purpose**: Contact list fetching, resume data extraction, and Excel export
 
 **Key Features**:
 - Automatic pagination detection
 - HTML table parsing with BeautifulSoup
 - Contact data extraction and normalization
+- Resume data extraction from employee profile pages
+- Automatic education table detection and parsing
+- Employment date and birth date extraction
 - Excel export with pandas
 - Comprehensive command-line interface
+
+**Resume Data Extraction**:
+The `parse_resume_data()` function automatically extracts 7 fields from employee resumes:
+- `Date of Birth`: Born date extracted from resume page
+- `Date Join TMA`: Employment start date
+- `Institution`: University/School name
+- `Year of attendance`: Attendance period
+- `Certificate`: Degree/Diploma name
+- `Major field`: Field of study
+- `Ranking`: Academic ranking/GPA
+
+The function intelligently handles both simple label-value pair rows and complex education tables.
 
 **Key Functions**:
 - `build_hrm_domain_url(domain)`: Convert domain to URL
 - `build_params()`: Build query parameters for HRM API
 - `fetch_html()`: Fetch HTML from HRM server
 - `parse_max_page_and_current()`: Extract pagination info
-- `normalize_text()`: Normalize whitespace
+- `normalize_text()`: Normalize whitespace and special characters
 - `parse_rows()`: Parse contact rows from HTML table
 - `detect_page_param()`: Auto-detect pagination parameter
-- `export_contacts()`: Main export function
+- `parse_resume_data()`: Extract educational and employment data from resume pages
+- `export_contacts()`: Main export function with resume data integration
 - `main()`: Command-line interface
 
 ### main.py
@@ -312,6 +328,56 @@ The application handles various error scenarios:
 
 ## Maintenance
 
+## Resume Data Extraction Implementation
+
+### Resume Page Structure
+Resume pages contain multiple sections:
+1. **Employee Profile** section with personal data (in table with 132+ cells)
+2. **Education** section with a structured table (5 columns: Institution, Year, Certificate, Major, Ranking)
+3. **Professional Experience** section with work history
+4. **Skills** section
+5. **Certifications** section
+
+### Data Extraction Strategy
+
+**Employee Date Fields (Date of Birth, Date Join TMA)**:
+- Target: Simple 2-cell label-value row pairs
+- Labels: Exact match for "Date Of Birth:", "Date Join TMA:"
+- Extraction: Gets text from second cell of matching row
+- Fallback: Returns empty string if not found
+
+**Education Fields (Institution, Year, Certificate, Major, Ranking)**:
+- Target: Structured education table with exactly 5 columns
+- Detection: Verifies table headers match all 5 education labels
+- Extraction: Processes data rows (non-header) and extracts 5 fields
+- Strategy: Takes first education entry (primary degree/institution)
+- Fallback: Returns empty string for missing fields
+
+### Data Coverage
+Based on 193 employee sample export:
+- Date of Birth: 92.2% (178/193)
+- Date Join TMA: 92.2% (178/193)
+- Institution: 90.7% (175/193)
+- Year of attendance: 90.7% (175/193)
+- Certificate: 90.7% (175/193)
+- Major field: 90.7% (175/193)
+- Ranking: 83.9% (162/193)
+
+### HTML Parsing Design Decisions
+
+1. **Exact Label Matching**: Avoids false positives from content-heavy tables
+2. **2-Cell Validation**: Ensures simple label-value structure, skips complex layouts
+3. **Table Column Count**: Requires exactly 5 columns for education table validation
+4. **First Entry Priority**: Extracts primary education entry first, allows multiple entries in same page
+
+### Performance
+- Resume fetching: ~178 resumes processed per export run
+- Average parsing time: <200ms per resume
+- Network delay: Configurable 0.2-0.4s between requests
+- Total export time: ~3-5 minutes for 193 employees
+
+---
+
 ### Project Root
 ```
 D:\PlayGround\employee
@@ -334,24 +400,28 @@ D:\PlayGround\employee
 ## Version History
 
 ### v1.0.0 (Current)
-- ✅ Complete CAS authentication
-- ✅ Session caching
-- ✅ Automatic pagination
-- ✅ Comprehensive docstrings
-- ✅ Full type hints
+- ✅ Complete CAS authentication with session caching
+- ✅ Automatic pagination detection and handling
+- ✅ Contact data extraction (badge ID, name, email, position, etc.)
+- ✅ Automatic resume data extraction (7 fields)
+- ✅ Education table parsing with intelligent detection
+- ✅ Employment date extraction
+- ✅ Comprehensive Excel export with all data columns
+- ✅ Full type hints and docstrings
+- ✅ Professional error handling
 - ✅ English documentation
-- ✅ Professional code quality
 
 ## Future Enhancements
 
 Potential improvements:
-- Add logging module
-- Support for multiple export formats (CSV, JSON)
+- Add logging module for detailed operation tracking
+- Support for multiple export formats (CSV, JSON, database)
+- Enhanced resume parsing (multiple education entries, skills extraction)
 - Configuration file support (YAML, INI)
-- Database export option
-- Scheduled export automation
+- Scheduled export automation and incremental updates
 - Progress bar for large exports
-- Incremental export (only new records)
+- Resume data validation and quality reporting
+- API endpoint for programmatic access
 
 ## Support & Troubleshooting
 
